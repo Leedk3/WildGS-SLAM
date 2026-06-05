@@ -15,7 +15,23 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch_scatter import scatter_mean
+# torch_scatter replaced with PyTorch native ops (sm_120 / Blackwell compatibility)
+def scatter_mean(src, index, dim=0, out=None, dim_size=None):
+    if dim_size is None:
+        dim_size = int(index.max().item()) + 1
+    shape = list(src.shape)
+    shape[dim] = dim_size
+    result = torch.zeros(shape, dtype=src.dtype, device=src.device)
+    count  = torch.zeros(shape, dtype=src.dtype, device=src.device)
+    idx = index
+    for _ in range(dim):
+        idx = idx.unsqueeze(0)
+    for _ in range(len(src.shape) - dim - 1):
+        idx = idx.unsqueeze(-1)
+    idx = idx.expand_as(src)
+    result.scatter_add_(dim, idx, src)
+    count.scatter_add_(dim, idx, torch.ones_like(src))
+    return result / count.clamp(min=1)
 
 from src.modules.droid_net import ConvGRU, BasicEncoder, GradientClip
 

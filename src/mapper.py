@@ -961,7 +961,6 @@ class Mapper(object):
                     image,
                     depth,
                     viewpoint,
-                    opacity,
                     initialization=True,
                 )
             else:
@@ -1115,7 +1114,7 @@ class Mapper(object):
                 ).squeeze(0)
             if not self.uncertainty_aware:
                 loss_mapping += get_loss_mapping(
-                    self.config["mapping"], image, depth, viewpoint, opacity
+                    self.config["mapping"], image, depth, viewpoint
                 )
             else:
                 train_frac = self.uncer_params["train_frac_fix"]
@@ -1286,7 +1285,7 @@ class Mapper(object):
                 ).squeeze(0)
             if not self.uncertainty_aware:
                 loss_mapping += get_loss_mapping(
-                    self.config["mapping"], image, depth, viewpoint, opacity
+                    self.config["mapping"], image, depth, viewpoint
                 )
             else:
                 train_frac = self.uncer_params["train_frac_fix"]
@@ -1499,18 +1498,18 @@ class Mapper(object):
             # Add plotting 2x4 grid with additional figures for uncertainty
             # Estimated uncertainty map
             uncertainty_map = self.get_viewpoint_uncertainty_no_grad(viewpoint)
-            uncertainty_map = uncertainty_map.cpu().squeeze(0)
+            uncertainty_map = uncertainty_map.detach().cpu().squeeze(0)
 
             # SSIM loss
             opacity = render_pkg["opacity"].detach().squeeze()
             ssim_loss = self._get_uncertainty_ssim_loss_vis(
                 gt_image, rendered_img, opacity
             )
-            ssim_loss = ssim_loss.cpu().squeeze(0)
+            ssim_loss = ssim_loss.detach().cpu().squeeze(0)
         else:
-            # All white
-            uncertainty_map = torch.ones_like(rendered_img)
-            ssim_loss = torch.ones_like(rendered_img)
+            # Uncertainty is disabled in lightweight live configs.
+            uncertainty_map = torch.ones_like(rendered_depth[0]).detach().cpu()
+            ssim_loss = torch.ones_like(rendered_depth[0]).detach().cpu()
 
         # Make the plot
         # Determine Plot Aspect Ratio

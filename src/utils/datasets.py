@@ -1,6 +1,7 @@
 import glob
 import os
 import math
+import time
 
 import cv2
 import numpy as np
@@ -102,8 +103,8 @@ class BaseDataset(Dataset):
         self.H_edge_full =  int(math.ceil(self.H_edge*self.H/self.H_out_with_edge))
         self.H_out_full, self.W_out_full = self.H - self.H_edge_full * 2, self.W - self.W_edge_full * 2
 
-        self.distortion = np.array(
-            cfg['cam']['distortion']) if 'distortion' in cfg['cam'] else None
+        distortion_cfg = cfg['cam'].get('distortion')
+        self.distortion = np.array(distortion_cfg) if distortion_cfg else None
 
         self.input_folder = cfg['data']['input_folder']
         if "ROOT_FOLDER_PLACEHOLDER" in self.input_folder:
@@ -472,6 +473,55 @@ class RGB_NoPose(BaseDataset):
         self.color_paths = self.color_paths[:max_frames][::stride]
         self.n_img = len(self.color_paths)
 
+
+class ROS2ImageTopic(RGB_NoPose):
+    """RGB-only dataset backed by files captured from a ROS2 Image topic.
+
+    The ROS2 wrapper writes images into ``<input_folder>/rgb/frameXXXXX.png`` while
+    WildGS-SLAM is running. The tracker and mapper open separate dataset instances,
+    so this class waits for each frame file to appear instead of globbing once at
+    startup.
+    """
+
+    def __init__(self, cfg, device='cuda:0'):
+        BaseDataset.__init__(self, cfg, device)
+        self.depth_paths = None
+        self.poses = None
+
+        max_frames = cfg['max_frames']
+        ros2_cfg = cfg.get("ros2", {})
+        if max_frames < 0:
+            max_frames = int(ros2_cfg.get("stream_max_frames", 100000))
+
+        self.n_img = max_frames
+        self.color_dir = os.path.join(self.input_folder, "rgb")
+        self.color_paths = [
+            os.path.join(self.color_dir, f"frame{i:05d}.png")
+            for i in range(max_frames)
+        ]
+
+        self.file_timeout_s = float(ros2_cfg.get("file_timeout_s", 60.0))
+        self.poll_interval_s = float(ros2_cfg.get("poll_interval_s", 0.05))
+
+    def _wait_for_frame(self, index):
+        path = self.color_paths[index]
+        deadline = None
+        if self.file_timeout_s > 0:
+            deadline = time.monotonic() + self.file_timeout_s
+
+        while not os.path.exists(path):
+            if deadline is not None and time.monotonic() > deadline:
+                raise TimeoutError(
+                    f"Timed out waiting for ROS2 image frame {index}: {path}"
+                )
+            time.sleep(self.poll_interval_s)
+
+        return path
+
+    def get_color(self, index):
+        self._wait_for_frame(index)
+        return BaseDataset.get_color(self, index)
+
 dataset_dict = {
     "replica": Replica,
     "scannet": ScanNet,
@@ -479,5 +529,6 @@ dataset_dict = {
     "bonn_dynamic": TUM_RGBD,
     "wild_slam_mocap": TUM_RGBD,
     "7scenes": SevenScenes,
-    "wild_slam_iphone": RGB_NoPose
+    "wild_slam_iphone": RGB_NoPose,
+    "ros2_image_topic": ROS2ImageTopic,
 }

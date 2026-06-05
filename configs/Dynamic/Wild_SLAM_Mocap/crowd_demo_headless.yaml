@@ -1,0 +1,13 @@
+inherit_from: ./configs/Dynamic/Wild_SLAM_Mocap/crowd_demo.yaml
+
+gui: False
+
+mapping:
+  online_plotting: False
+
+data:
+  output: ./output/Wild_SLAM_Mocap_demo_headless
+
+cam:
+  H_out: 240
+  W_out: 400

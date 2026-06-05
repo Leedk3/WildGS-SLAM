@@ -1,0 +1,51 @@
+inherit_from: ./configs/Dynamic/Wild_SLAM_Mocap/crowd_demo_headless.yaml
+
+dataset: 'ros2_image_topic'
+scene: aac_gazebo_front
+max_frames: 1000
+
+fast_mode: True
+gui: False
+
+data:
+  input_folder: ./datasets/ROS2/aac_gazebo_front
+  output: ./output/ROS2_aac_gazebo_front
+
+cam:
+  # AAC Gazebo camera_front: 1280x720, horizontal_fov=1.2217 rad.
+  # The ROS2 wrapper will override these values from CameraInfo when available.
+  H: 720
+  W: 1280
+  fx: 914.0443685627914
+  fy: 914.0443685627914
+  cx: 640.0
+  cy: 360.0
+  distortion:
+  H_out: 176
+  W_out: 320
+
+mono_prior:
+  depth: 'metric3d_vit_small'
+
+mapping:
+  online_plotting: False
+  final_refine_iters: 0
+  Training:
+    init_itr_num: 300
+    mapping_itr_num: 100
+  uncertainty_params:
+    activate: False
+
+tracking:
+  frontend:
+    enable_loop: False
+  backend:
+    final_ba: False
+    ba_freq: 50
+  uncertainty_params:
+    activate: False
+
+ros2:
+  file_timeout_s: 120.0
+  poll_interval_s: 0.05
+  stream_max_frames: 100000

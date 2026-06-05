@@ -147,6 +147,13 @@ class SLAM:
     def terminate(self):
         """fill poses for non-keyframe images and evaluate"""
 
+        def mapper_ready():
+            return (
+                hasattr(self.mapper, "cameras")
+                and len(self.mapper.cameras) > 0
+                and hasattr(self.mapper, "gaussians")
+            )
+
         if (
             self.cfg["tracking"]["backend"]["final_ba"]
             and self.cfg["mapping"]["eval_before_final_ba"]
@@ -165,10 +172,11 @@ class SLAM:
                 except Exception as e:
                     self.printer.print(e, FontColor.ERROR)
 
-            self.mapper.save_all_kf_figs(
-                self.save_dir,
-                iteration="before_refine",
-            )
+            if mapper_ready():
+                self.mapper.save_all_kf_figs(
+                    self.save_dir,
+                    iteration="before_refine",
+                )
 
         if self.cfg["tracking"]["backend"]["final_ba"]:
             self.backend()
@@ -187,39 +195,52 @@ class SLAM:
             except Exception as e:
                 self.printer.print(e, FontColor.ERROR)
 
-        if self.cfg["tracking"]["backend"]["final_ba"]:
+        if (
+            self.cfg["tracking"]["backend"]["final_ba"]
+            and mapper_ready()
+            and self.cfg["mapping"]["final_refine_iters"] > 0
+        ):
             self.mapper.final_refine(
                 iters=self.cfg["mapping"]["final_refine_iters"]
             )  # this performs a set of optimizations with RGBD loss to correct
 
-        # Evaluate the metrics
-        self.mapper.save_all_kf_figs(
-            self.save_dir,
-            iteration="after_refine",
-        )
+        if mapper_ready():
+            # Evaluate the metrics
+            self.mapper.save_all_kf_figs(
+                self.save_dir,
+                iteration="after_refine",
+            )
 
-        ## Not used, see head comments of the function
-        # self._eval_depth_all(ate_statistics, global_scale, r_a, t_a)
+            ## Not used, see head comments of the function
+            # self._eval_depth_all(ate_statistics, global_scale, r_a, t_a)
 
-        # Regenerate feature extractor for non-keyframes
-        self.traj_filler.setup_feature_extractor()
-        full_traj_eval(
-            self.traj_filler,
-            self.mapper,
-            f"{self.save_dir}/traj",
-            "full_traj",
-            self.stream,
-            self.logger,
-            self.printer,
-            self.cfg['fast_mode'],
-        )
+            # Regenerate feature extractor for non-keyframes
+            self.traj_filler.setup_feature_extractor()
+            full_traj_eval(
+                self.traj_filler,
+                self.mapper,
+                f"{self.save_dir}/traj",
+                "full_traj",
+                self.stream,
+                self.logger,
+                self.printer,
+                self.cfg['fast_mode'],
+            )
 
-        self.mapper.gaussians.save_ply(f"{self.save_dir}/final_gs.ply")
+            self.mapper.gaussians.save_ply(f"{self.save_dir}/final_gs.ply")
 
-        if self.cfg["mapping"]["uncertainty_params"]["activate"]:
-            torch.save(
-                self.mapper.uncer_network.state_dict(),
-                self.save_dir + "/uncertainty_mlp_weight.pth",
+            if (
+                self.cfg["mapping"]["uncertainty_params"]["activate"]
+                and hasattr(self.mapper, "uncer_network")
+            ):
+                torch.save(
+                    self.mapper.uncer_network.state_dict(),
+                    self.save_dir + "/uncertainty_mlp_weight.pth",
+                )
+        else:
+            self.printer.print(
+                "Skipping final map refinement/export because no mapper keyframes were initialized.",
+                FontColor.INFO,
             )
 
         self.printer.print("Metrics Evaluation Done!", FontColor.EVAL)

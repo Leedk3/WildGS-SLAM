@@ -1,4 +1,5 @@
 from typing import Dict, List, Tuple, Union
+import logging
 import numpy as np
 
 import torch
@@ -15,7 +16,11 @@ as it will cause errors in multipprocessing setup of the SLAM system
 class Fit3DModels(torch.nn.Module):
     def __init__(self, extractor_model, device):
         super().__init__()
-        self.model = torch.hub.load("ywyue/FiT3D", extractor_model).to(device).eval()
+        self.model = (
+            torch.hub.load("ywyue/FiT3D", extractor_model, trust_repo=True)
+            .to(device)
+            .eval()
+        )
 
     def get_intermediate_layers(
         self,
@@ -72,10 +77,18 @@ def get_feature_extractor(cfg: Dict) -> nn.Module:
     extractor_model = cfg["mono_prior"]["feature_extractor"]
 
     if extractor_model in ["dinov2_reg_small_fine", "dinov2_small_fine"]:
+        logging.getLogger("dinov2").setLevel(logging.ERROR)
         return Fit3DModels(extractor_model, device)
     elif extractor_model in ["dinov2_vits14", "dinov2_vits14_reg"]:
+        logging.getLogger("dinov2").setLevel(logging.ERROR)
         return (
-            torch.hub.load("facebookresearch/dinov2", extractor_model).to(device).eval()
+            torch.hub.load(
+                "facebookresearch/dinov2",
+                extractor_model,
+                trust_repo=True,
+            )
+            .to(device)
+            .eval()
         )
     else:
         # If use other feature extractor as prior, add code here

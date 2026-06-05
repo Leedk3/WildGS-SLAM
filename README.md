@@ -62,6 +62,67 @@ WildGS-SLAM accurately tracks the camera trajectory and reconstructs a 3D Gaussi
 
 ## Installation
 
+### AAC 2026 local setup for RTX 50-series
+
+For the local AAC x86 Docker container with an RTX 5080 (`sm_120`), use the patched venv setup script instead of the upstream CUDA 11.8 / PyTorch 2.1 instructions below.
+
+```bash
+cd /ros_ws/src/aac_2026/navigation/WildGS-SLAM
+bash setup_venv_x86.sh
+source .venv-wildgs/bin/activate
+```
+
+This local setup uses the container's CUDA 12.8 `nvcc`, PyTorch `cu128`, native PyTorch scatter ops instead of `torch_scatter`, and CUDA extension builds with `sm_120`. A conda-based setup is also available in `setup_conda.sh` if conda is installed separately.
+
+For the AAC x86 Docker validation workflow, see [`docs/aac_x86_docker_manual.md`](docs/aac_x86_docker_manual.md).
+
+If the container has `nvcc` but is missing CUDA development headers such as `cusparse.h`, install the CUDA 12.8 dev libraries from the host:
+
+```bash
+docker exec -u root aac-2026-container-all apt-get update
+docker exec -u root aac-2026-container-all apt-get install -y --no-install-recommends cuda-libraries-dev-12-8
+```
+
+Before running the full install, the lightweight patch harness can be used to check the local modifications:
+
+```bash
+cd /ros_ws/src/aac_2026/navigation/WildGS-SLAM
+harnesses/check_sm120_patch.py
+```
+
+For a Docker/headless smoke test, download the demo data and `pretrained/droid.pth`, then run the GUI-free demo config:
+
+```bash
+cd /ros_ws/src/aac_2026/navigation/WildGS-SLAM
+source .venv-wildgs/bin/activate
+bash scripts_downloading/download_demo_data.sh
+python run.py ./configs/Dynamic/Wild_SLAM_Mocap/crowd_demo_headless.yaml
+```
+
+The first run may also download the Metric3D model through `torch.hub`.
+
+To run from an AAC ROS2 camera image topic, use the local wrapper. It records
+`sensor_msgs/Image` frames into a live RGB dataset folder and launches WildGS-SLAM
+with the generated runtime config:
+
+```bash
+cd /ros_ws/src/aac_2026/navigation/WildGS-SLAM
+source /opt/ros/$ROS_DISTRO/setup.bash
+[ -f /ros_ws/install/setup.bash ] && source /ros_ws/install/setup.bash
+source .venv-wildgs/bin/activate
+python scripts_run/ros2_image_topic_wrapper.py \
+  --config ./configs/ROS2/aac_gazebo_front_lowvram.yaml \
+  --image-topic /camera_front/image_raw \
+  --camera-info-topic /camera_info \
+  --kill-stale-workers \
+  --frames 1000
+```
+
+For a continuous live run, replace `--frames 1000` with `--stream`.
+
+See [`docs/aac_x86_docker_manual.md`](docs/aac_x86_docker_manual.md#8-ros2-image-topic으로-실행)
+for Gazebo and USB camera examples.
+
 1. First you have to make sure that you clone the repo with the `--recursive` flag.
 The simplest way to do so, is to use [anaconda](https://www.anaconda.com/). 
 ```bash

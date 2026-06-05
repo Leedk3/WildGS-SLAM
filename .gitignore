@@ -1,6 +1,7 @@
 datasets/
 build/
 *.egg-info/
+.venv*/
 
 __pycache__/
 *.pyc
@@ -10,6 +11,7 @@ __pycache__/
 pretrained/
 
 output*/
+configs/ROS2/_runtime*.yaml
 
 .vscode/
 

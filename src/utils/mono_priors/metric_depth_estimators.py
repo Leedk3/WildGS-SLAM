@@ -1,4 +1,5 @@
 import numpy as np
+import logging
 import torch
 import torch.nn.functional as F
 from torchvision import transforms
@@ -25,7 +26,15 @@ def get_metric_depth_estimator(cfg: Dict) -> torch.nn.Module:
 
     if "metric3d_vit" in depth_model:
         # Options: metric3d_vit_small, metric3d_vit_large, metric3d_vit_giant2
-        model = torch.hub.load("yvanyin/metric3d", depth_model, pretrain=True)
+        # Metric3D still probes deprecated xformers.components APIs. Modern
+        # xFormers ops work, but that stale probe prints a noisy warning.
+        logging.getLogger("dinov2").setLevel(logging.ERROR)
+        model = torch.hub.load(
+            "yvanyin/metric3d",
+            depth_model,
+            pretrain=True,
+            trust_repo=True,
+        )
     elif "dpt2" in depth_model:
         model = _create_dpt2_model(depth_model)
     else:

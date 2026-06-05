@@ -18,7 +18,20 @@ import torch.nn.functional as F
 from .chol import block_solve, schur_solve
 import src.geom.projective_ops as pops
 
-from torch_scatter import scatter_sum
+# torch_scatter replaced with PyTorch native ops (sm_120 / Blackwell compatibility)
+def scatter_sum(src, index, dim=0, out=None, dim_size=None):
+    if dim_size is None:
+        dim_size = int(index.max().item()) + 1
+    shape = list(src.shape)
+    shape[dim] = dim_size
+    result = torch.zeros(shape, dtype=src.dtype, device=src.device)
+    idx = index
+    for _ in range(dim):
+        idx = idx.unsqueeze(0)
+    for _ in range(len(src.shape) - dim - 1):
+        idx = idx.unsqueeze(-1)
+    idx = idx.expand_as(src)
+    return result.scatter_add_(dim, idx, src)
 
 
 # utility functions for scattering ops
